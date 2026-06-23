@@ -1,0 +1,16 @@
+#Ignore raft data
+/raft
+# Ignore certificates
+/tls/vault*
+# Ignore license file
+configs/vault.hclic
+# Keys
+**.key
+**.pem
+**.csr
+# Other secrets:
+other/vault-agent/role_id.txt
+other/vault-agent/secret_id.txt
+other/vault-agent/sink_file_wrapped.txt
+
+/secrets
