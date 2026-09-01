@@ -25,7 +25,7 @@ resource "aws_instance" "node" {
   instance_type               = var.vm_type
   subnet_id                   = aws_subnet.public.id
   private_ip                  = each.value.ip
-  user_data                   = data.cloudinit_config.content[each.key].rendered
+  user_data_base64            = data.cloudinit_config.content[each.key].rendered
   user_data_replace_on_change = true
   key_name                    = aws_key_pair.simple_kp.key_name
   vpc_security_group_ids      = [aws_security_group.public.id]
@@ -49,8 +49,8 @@ resource "aws_key_pair" "simple_kp" {
 
 data "cloudinit_config" "content" {
   for_each      = var.vms_info
-  gzip          = false
-  base64_encode = false
+  gzip          = true
+  base64_encode = true
 
   part {
     content_type = "text/cloud-config"
@@ -66,7 +66,7 @@ data "cloudinit_config" "content" {
           content = acme_certificate.cert[each.key].issuer_pem
         },
         {
-          path = "/etc/vault.d/vault-cert.pem"
+          path    = "/etc/vault.d/vault-cert.pem"
           content = "${acme_certificate.cert[each.key].certificate_pem}${acme_certificate.cert[each.key].issuer_pem}" #needs full chain
         },
         {
@@ -80,10 +80,11 @@ data "cloudinit_config" "content" {
   part {
     content_type = "text/x-shellscript"
     content = templatefile("${path.module}/templates/boot.sh", {
-      node_name   = each.value.id
-      server_name = each.value.fqdn
-      private_ip  = each.value.ip
-      token_label = "vault-hsm"
+      node_name      = each.value.id
+      server_name    = each.value.fqdn
+      private_ip     = each.value.ip
+      token_label    = "vault-hsm"
+      admin_password = var.admin_password
     })
   }
 }

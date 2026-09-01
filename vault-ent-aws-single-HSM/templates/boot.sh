@@ -4,8 +4,12 @@ set -euo pipefail
 
 # This assumes certificates and license are already copied in the /etc/vault.d/ directory
 
+LOGFILE="/var/log/vault/bootstrap.log"
+VAULT_VERSION="2.0.4+ent.hsm"
+SECRETS_DIR="/etc/vault/.secrets"
+
 # The usual logging / error catching stuff
-LOGFILE="/var/log/bootstrap.log"
+mkdir -p "$(dirname "$LOGFILE")"
 
 function log {
   local level="$1"
@@ -47,8 +51,6 @@ log "INFO" "Installing Vault"
 
 useradd --system --user-group --shell /bin/false vault
 usermod -aG softhsm vault
-
-VAULT_VERSION="2.0.1+ent.hsm"
 
 wget https://releases.hashicorp.com/vault/$${VAULT_VERSION}/vault_$${VAULT_VERSION}_linux_arm64.zip && \
     unzip vault_$${VAULT_VERSION}_linux_arm64.zip  && \
@@ -166,3 +168,66 @@ log "INFO" "Starting Vault service"
 systemctl daemon-reload 
 systemctl enable vault 
 systemctl start vault
+
+
+log "INFO" "Vault config complete. Service started"
+
+# ----- INITIALIZE VAULT ---------------------------------------------------
+
+mkdir -p "$${SECRETS_DIR}"
+
+VAULT_ADDR="https://${server_name}:8200"
+export VAULT_ADDR
+
+INIT_OUTPUT_FILE="$${SECRETS_DIR}/vault-init.json"
+ROOT_TOKEN_FILE="$${SECRETS_DIR}/vault-root-token.txt"
+RECOVERY_KEY_FILE="$${SECRETS_DIR}/vault-recovery-key.txt"
+
+# Wait for Vault to be responsive before attempting init
+log "INFO" "Waiting for Vault API to respond..."
+until curl -s -o /dev/null -w "%%{http_code}" "$${VAULT_ADDR}/v1/sys/health" | grep -qE "200|429|501|503"; do
+  sleep 2
+done
+
+# Check if already initialized (idempotency)
+INITIALIZED=$(curl -s "$${VAULT_ADDR}/v1/sys/health" | jq -r '.initialized')
+
+if [ "$INITIALIZED" = "false" ]; then
+  log "INFO" "Initializing Vault with 1 recovery key/threshold"
+
+  vault operator init \
+    -recovery-shares=1 \
+    -recovery-threshold=1 \
+    -format=json > "$${INIT_OUTPUT_FILE}"
+
+  # Extract and store root token
+  jq -r '.root_token' "$${INIT_OUTPUT_FILE}" > "$${ROOT_TOKEN_FILE}"
+
+  # Extract and store the single recovery key
+  jq -r '.recovery_keys_b64[0]' "$${INIT_OUTPUT_FILE}" > "$${RECOVERY_KEY_FILE}"
+
+  chmod 600 "$${INIT_OUTPUT_FILE}" "$${ROOT_TOKEN_FILE}" "$${RECOVERY_KEY_FILE}"
+
+  log "INFO" "Vault initialized. Root token and recovery key saved locally."
+else
+  log "INFO" "Vault already initialized, skipping."
+fi
+
+export VAULT_TOKEN=$(cat "$${ROOT_TOKEN_FILE}")
+
+# ----- CREATE ADMIN USER -----------------------------------------------
+
+log "INFO" "Creating admin user and policy"
+
+# Superadmin policy
+vault policy write admin - <<EOF
+path "*" {
+  capabilities = ["create", "read", "update", "delete", "list", "sudo"]
+}
+EOF
+
+# Userpass
+vault auth enable userpass
+vault write auth/userpass/users/admin password="${admin_password}" policies=admin
+
+log "INFO" "Done!"

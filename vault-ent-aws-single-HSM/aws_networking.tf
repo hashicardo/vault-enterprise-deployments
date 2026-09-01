@@ -37,16 +37,10 @@ resource "aws_vpc_security_group_ingress_rule" "allow_vault_external_vpc" {
 }
 
 # These ingress rules allows SSH access only from allowed office and private
-resource "aws_vpc_security_group_ingress_rule" "allow_ssh_office" {
+resource "aws_vpc_security_group_ingress_rule" "allow_ssh" {
+  for_each          = var.allowed_cidrs
   security_group_id = aws_security_group.public.id
-  cidr_ipv4         = var.allowed_cidrs.office
-  from_port         = 22
-  to_port           = 22
-  ip_protocol       = "tcp"
-}
-resource "aws_vpc_security_group_ingress_rule" "allow_ssh_private" {
-  security_group_id = aws_security_group.public.id
-  cidr_ipv4         = var.allowed_cidrs.private
+  cidr_ipv4         = each.value
   from_port         = 22
   to_port           = 22
   ip_protocol       = "tcp"

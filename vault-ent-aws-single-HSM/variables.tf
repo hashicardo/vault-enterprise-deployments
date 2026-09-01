@@ -18,6 +18,11 @@ variable "region" {
   default = "eu-west-2"
 }
 
+variable "admin_password" {
+  type        = string
+  description = "Password for the admin user"
+}
+
 #######################
 #      Networking     #
 #######################
@@ -39,7 +44,7 @@ variable "allowed_cidrs" {
   description = "IP addresses of external sources allowed to access the VPC."
   default = {
     office  = "80.24.36.153/32" #"46.26.36.56/32"
-    private = "2.138.226.245/32"
+    private = "80.26.165.37/32"
   }
 }
 
@@ -54,7 +59,7 @@ variable "vms_info" {
     node0 = {
       id   = "vault0"
       ip   = "10.0.0.10"
-      fqdn = "vault.ricardo.engineer"
+      fqdn = "vault.riki.engineer"
     }
   }
 }
@@ -82,5 +87,5 @@ variable "tls_cert_email_address" {
 variable "cloudflare_domain" {
   type        = string
   description = "Domain name to create records in."
-  default     = "ricardo.engineer"
+  default     = "riki.engineer"
 }
