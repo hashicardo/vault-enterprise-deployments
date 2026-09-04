@@ -31,3 +31,5 @@ override.tf.json
 # Ignore any keys:
 *.pem
 *.pem*
+
+*secrets*
